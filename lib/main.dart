@@ -76,119 +76,129 @@ class _JoystickScreenState extends State<JoystickScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<JoystickState>(
-      stream: _bloc.stream,
-      initialData: _bloc.state,
-      builder: (context, snapshot) {
-        final state = snapshot.data ?? _bloc.state;
-        return Scaffold(
-          body: Stack(
-            children: [
-              // Deep space cyber background
-              Positioned.fill(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF040A12),
-                        Color(0xFF0A1829),
-                        Color(0xFF051D28),
-                      ],
-                    ),
-                  ),
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Deep space cyber background
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF040A12),
+                    Color(0xFF0A1829),
+                    Color(0xFF051D28),
+                  ],
                 ),
               ),
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.center,
-                      radius: 1.0,
-                      colors: [
-                        const Color(0xFF00E5FF).withOpacity(0.04),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 1.0,
+                  colors: [
+                    const Color(0xFF00E5FF).withOpacity(0.04),
+                    Colors.transparent,
+                  ],
                 ),
               ),
-              const Positioned.fill(child: _BackgroundTechLines()),
+            ),
+          ),
+          const Positioned.fill(child: _BackgroundTechLines()),
 
-              // Centered Left, Middle, and Right Controls (3 Columns)
-              Positioned.fill(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      // Column 1: Throttle (Vertical Slider)
-                      Expanded(
-                        flex: 3,
-                        child: Center(
-                          child: SizedBox(
-                            width: 150,
-                            // height: 280, // Takes up optimal vertical height
-                            child: _ControlCard(
+          // Centered Left, Middle, and Right Controls (3 Columns)
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Row(
+                children: [
+                  // Column 1: Throttle (Vertical Slider)
+                  Expanded(
+                    flex: 3,
+                    child: Center(
+                      child: SizedBox(
+                        width: 150,
+                        child: StreamBuilder<int>(
+                          stream: _bloc.stream.map((s) => s.y).distinct(),
+                          initialData: _bloc.state.y,
+                          builder: (context, snapshot) {
+                            final yValue = snapshot.data ?? _bloc.state.y;
+                            return _ControlCard(
                               title: 'THROTTLE',
                               subtitle: 'Y-Axis',
-                              value: state.y,
+                              value: yValue,
                               child: RotatedBox(
                                 quarterTurns: 3,
                                 child: _ColoredTrackSlider(
-                                  value: state.y,
+                                  value: yValue,
                                   onChanged: (val) =>
                                       _bloc.setAxis(JoystickAxis.y, val),
                                   onChangeEnd: (val) =>
                                       _bloc.snapAxisToCenter(JoystickAxis.y),
                                 ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         ),
                       ),
-                      // Column 2: Bluetooth Status (Center Button)
-                      SizedBox(
-                        width: 140,
-                        child: Center(
-                          child: _TopStatusBar(state: state, bloc: _bloc),
-                        ),
+                    ),
+                  ),
+                  // Column 2: Bluetooth Status (Center Button)
+                  SizedBox(
+                    width: 140,
+                    child: Center(
+                      child: StreamBuilder<JoystickState>(
+                        stream: _bloc.stream,
+                        initialData: _bloc.state,
+                        builder: (context, snapshot) {
+                          final state = snapshot.data ?? _bloc.state;
+                          return _TopStatusBar(state: state, bloc: _bloc);
+                        },
                       ),
-                      // Column 3: Steering (Horizontal Slider)
-                      Expanded(
-                        flex: 5,
-                        child: Center(
-                          child: SizedBox(
-                            width: 380, // Very wide horizontal slider
-                            height: 150,
-                            child: _ControlCard(
+                    ),
+                  ),
+                  // Column 3: Steering (Horizontal Slider)
+                  Expanded(
+                    flex: 5,
+                    child: Center(
+                      child: SizedBox(
+                        width: 380, // Very wide horizontal slider
+                        height: 150,
+                        child: StreamBuilder<int>(
+                          stream: _bloc.stream.map((s) => s.x).distinct(),
+                          initialData: _bloc.state.x,
+                          builder: (context, snapshot) {
+                            final xValue = snapshot.data ?? _bloc.state.x;
+                            return _ControlCard(
                               title: 'STEERING',
                               subtitle: 'X-Axis',
-                              value: state.x,
+                              value: xValue,
                               child: Center(
                                 child: _ColoredTrackSlider(
-                                  value: state.x,
+                                  value: xValue,
                                   onChanged: (val) =>
                                       _bloc.setAxis(JoystickAxis.x, val),
                                   onChangeEnd: (val) =>
                                       _bloc.snapAxisToCenter(JoystickAxis.x),
                                 ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
@@ -355,8 +365,9 @@ class _TransparentSliderTrackShape extends SliderTrackShape
   }
 }
 
-class _ColoredTrackSlider extends StatelessWidget {
+class _ColoredTrackSlider extends StatefulWidget {
   const _ColoredTrackSlider({
+    super.key,
     required this.value,
     required this.onChanged,
     required this.onChangeEnd,
@@ -367,7 +378,23 @@ class _ColoredTrackSlider extends StatelessWidget {
   final ValueChanged<double> onChangeEnd;
 
   @override
+  State<_ColoredTrackSlider> createState() => _ColoredTrackSliderState();
+}
+
+class _ColoredTrackSliderState extends State<_ColoredTrackSlider> {
+  double? _localValue;
+
+  @override
+  void didUpdateWidget(covariant _ColoredTrackSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _localValue = widget.value.toDouble();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final currentValue = _localValue ?? widget.value.toDouble();
     return SizedBox(
       height: 60,
       child: Stack(
@@ -426,10 +453,19 @@ class _ColoredTrackSlider extends StatelessWidget {
             child: Slider(
               min: kAxisMin.toDouble(),
               max: kAxisMax.toDouble(),
-              divisions: kAxisMax - kAxisMin,
-              value: value.toDouble(),
-              onChanged: onChanged,
-              onChangeEnd: onChangeEnd,
+              value: currentValue,
+              onChanged: (newValue) {
+                setState(() {
+                  _localValue = newValue;
+                });
+                widget.onChanged(newValue);
+              },
+              onChangeEnd: (newValue) {
+                setState(() {
+                  _localValue = null;
+                });
+                widget.onChangeEnd(newValue);
+              },
             ),
           ),
         ],
