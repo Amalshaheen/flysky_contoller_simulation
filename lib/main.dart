@@ -11,6 +11,8 @@ import 'package:permission_handler/permission_handler.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
@@ -77,123 +79,237 @@ class _JoystickScreenState extends State<JoystickScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          // Deep space cyber background
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF040A12),
-                    Color(0xFF0A1829),
-                    Color(0xFF051D28),
-                  ],
+      body: OrientationBuilder(
+        builder: (context, orientation) {
+          final isPortrait = orientation == Orientation.portrait;
+          return Stack(
+            children: [
+              // Deep space cyber background
+              Positioned.fill(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF040A12),
+                        Color(0xFF0A1829),
+                        Color(0xFF051D28),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 1.0,
-                  colors: [
-                    const Color(0xFF00E5FF).withOpacity(0.04),
-                    Colors.transparent,
-                  ],
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment.center,
+                      radius: 1.0,
+                      colors: [
+                        const Color(0xFF00E5FF).withOpacity(0.04),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          const Positioned.fill(child: _BackgroundTechLines()),
+              const Positioned.fill(child: _BackgroundTechLines()),
 
-          // Centered Left, Middle, and Right Controls (3 Columns)
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                children: [
-                  // Column 1: Throttle (Vertical Slider)
-                  Expanded(
-                    flex: 3,
-                    child: Center(
-                      child: SizedBox(
-                        width: 150,
-                        child: StreamBuilder<int>(
-                          stream: _bloc.stream.map((s) => s.y).distinct(),
-                          initialData: _bloc.state.y,
-                          builder: (context, snapshot) {
-                            final yValue = snapshot.data ?? _bloc.state.y;
-                            return _ControlCard(
-                              title: 'THROTTLE',
-                              subtitle: 'Y-Axis',
-                              value: yValue,
-                              child: RotatedBox(
-                                quarterTurns: 3,
-                                child: _ColoredTrackSlider(
-                                  value: yValue,
-                                  onChanged: (val) =>
-                                      _bloc.setAxis(JoystickAxis.y, val),
-                                  onChangeEnd: (val) =>
-                                      _bloc.snapAxisToCenter(JoystickAxis.y),
+              // Content based on orientation
+              Positioned.fill(
+                child: SafeArea(
+                  child: isPortrait
+                      ? _buildPortraitLayout()
+                      : _buildLandscapeLayout(),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPortraitLayout() {
+    return Column(
+      children: [
+        // Top status card
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D1727).withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.08),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'FLYSKY SIMULATOR',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.5,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          StreamBuilder<JoystickState>(
+                            stream: _bloc.stream,
+                            initialData: _bloc.state,
+                            builder: (context, snapshot) {
+                              final state = snapshot.data ?? _bloc.state;
+                              return Text(
+                                state.statusMessage,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: Colors.white.withOpacity(0.4),
                                 ),
-                              ),
-                            );
-                          },
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    StreamBuilder<JoystickState>(
+                      stream: _bloc.stream,
+                      initialData: _bloc.state,
+                      builder: (context, snapshot) {
+                        final state = snapshot.data ?? _bloc.state;
+                        return _TopStatusBar(state: state, bloc: _bloc);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // Dynamic spacer to push components to the bottom of the screen
+        const Spacer(),
+
+        // Telemetry display (above joystick)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: StreamBuilder<JoystickState>(
+            stream: _bloc.stream,
+            initialData: _bloc.state,
+            builder: (context, snapshot) {
+              final state = snapshot.data ?? _bloc.state;
+              return _TelemetryDisplay(x: state.x, y: state.y);
+            },
+          ),
+        ),
+
+        const SizedBox(height: 24), // spacing between telemetry and joystick
+        // Joystick (at the bottom)
+        Center(child: _GraphJoystick(bloc: _bloc)),
+
+        const SizedBox(
+          height: 70,
+        ), // space below joystick to keep it comfortable to hold
+      ],
+    );
+  }
+
+  Widget _buildLandscapeLayout() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        children: [
+          // Column 1: Throttle (Vertical Slider)
+          Expanded(
+            flex: 3,
+            child: Center(
+              child: SizedBox(
+                width: 150,
+                child: StreamBuilder<int>(
+                  stream: _bloc.stream.map((s) => s.y).distinct(),
+                  initialData: _bloc.state.y,
+                  builder: (context, snapshot) {
+                    final yValue = snapshot.data ?? _bloc.state.y;
+                    return _ControlCard(
+                      title: 'THROTTLE',
+                      subtitle: 'Y-Axis',
+                      value: yValue,
+                      child: RotatedBox(
+                        quarterTurns: 3,
+                        child: _ColoredTrackSlider(
+                          value: yValue,
+                          onChanged: (val) =>
+                              _bloc.setAxis(JoystickAxis.y, val),
+                          onChangeEnd: (val) =>
+                              _bloc.snapAxisToCenter(JoystickAxis.y),
                         ),
                       ),
-                    ),
-                  ),
-                  // Column 2: Bluetooth Status (Center Button)
-                  SizedBox(
-                    width: 140,
-                    child: Center(
-                      child: StreamBuilder<JoystickState>(
-                        stream: _bloc.stream,
-                        initialData: _bloc.state,
-                        builder: (context, snapshot) {
-                          final state = snapshot.data ?? _bloc.state;
-                          return _TopStatusBar(state: state, bloc: _bloc);
-                        },
-                      ),
-                    ),
-                  ),
-                  // Column 3: Steering (Horizontal Slider)
-                  Expanded(
-                    flex: 5,
-                    child: Center(
-                      child: SizedBox(
-                        width: 380, // Very wide horizontal slider
-                        height: 150,
-                        child: StreamBuilder<int>(
-                          stream: _bloc.stream.map((s) => s.x).distinct(),
-                          initialData: _bloc.state.x,
-                          builder: (context, snapshot) {
-                            final xValue = snapshot.data ?? _bloc.state.x;
-                            return _ControlCard(
-                              title: 'STEERING',
-                              subtitle: 'X-Axis',
-                              value: xValue,
-                              child: Center(
-                                child: _ColoredTrackSlider(
-                                  value: xValue,
-                                  onChanged: (val) =>
-                                      _bloc.setAxis(JoystickAxis.x, val),
-                                  onChangeEnd: (val) =>
-                                      _bloc.snapAxisToCenter(JoystickAxis.x),
-                                ),
-                              ),
-                            );
-                          },
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          // Column 2: Bluetooth Status (Center Button)
+          SizedBox(
+            width: 140,
+            child: Center(
+              child: StreamBuilder<JoystickState>(
+                stream: _bloc.stream,
+                initialData: _bloc.state,
+                builder: (context, snapshot) {
+                  final state = snapshot.data ?? _bloc.state;
+                  return _TopStatusBar(state: state, bloc: _bloc);
+                },
+              ),
+            ),
+          ),
+          // Column 3: Steering (Horizontal Slider)
+          Expanded(
+            flex: 5,
+            child: Center(
+              child: SizedBox(
+                width: 380, // Very wide horizontal slider
+                height: 150,
+                child: StreamBuilder<int>(
+                  stream: _bloc.stream.map((s) => s.x).distinct(),
+                  initialData: _bloc.state.x,
+                  builder: (context, snapshot) {
+                    final xValue = snapshot.data ?? _bloc.state.x;
+                    return _ControlCard(
+                      title: 'STEERING',
+                      subtitle: 'X-Axis',
+                      value: xValue,
+                      child: Center(
+                        child: _ColoredTrackSlider(
+                          value: xValue,
+                          onChanged: (val) =>
+                              _bloc.setAxis(JoystickAxis.x, val),
+                          onChangeEnd: (val) =>
+                              _bloc.snapAxisToCenter(JoystickAxis.x),
                         ),
                       ),
-                    ),
-                  ),
-                ],
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -395,6 +511,20 @@ class _ColoredTrackSliderState extends State<_ColoredTrackSlider> {
   @override
   Widget build(BuildContext context) {
     final currentValue = _localValue ?? widget.value.toDouble();
+    final intensity = (currentValue.abs() / 255.0).clamp(0.0, 1.0);
+
+    final trackColor = Color.lerp(
+      const Color(0xFF0D1727).withOpacity(0.55),
+      const Color(0xFFFF5252).withOpacity(0.45),
+      intensity,
+    );
+
+    final borderColor = Color.lerp(
+      Colors.white.withOpacity(0.08),
+      const Color(0xFFFF5252).withOpacity(0.8),
+      intensity,
+    );
+
     return SizedBox(
       height: 60,
       child: Stack(
@@ -405,33 +535,20 @@ class _ColoredTrackSliderState extends State<_ColoredTrackSlider> {
             child: Container(
               height: 28,
               decoration: BoxDecoration(
+                color: trackColor,
                 borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF5252).withOpacity(0.65),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(14),
-                          bottomLeft: Radius.circular(14),
+                border: Border.all(color: borderColor!, width: 1.5),
+                boxShadow: intensity > 0.01
+                    ? [
+                        BoxShadow(
+                          color: const Color(
+                            0xFFFF5252,
+                          ).withOpacity(0.3 * intensity),
+                          blurRadius: 10,
+                          spreadRadius: 1,
                         ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF69F0AE).withOpacity(0.65),
-                        borderRadius: const BorderRadius.only(
-                          topRight: Radius.circular(14),
-                          bottomRight: Radius.circular(14),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                      ]
+                    : null,
               ),
             ),
           ),
@@ -791,6 +908,30 @@ class JoystickBloc {
     _queueCurrentPayload(force: true);
   }
 
+  void setAxes(double xVal, double yVal) {
+    if (_isDisposed) {
+      return;
+    }
+
+    _x = _clampAxis(xVal);
+    _y = _clampAxis(yVal);
+
+    _emit(_state.copyWith(x: _x, y: _y));
+    _queueCurrentPayload(force: false);
+  }
+
+  void snapAxesToCenter() {
+    if (_isDisposed) {
+      return;
+    }
+
+    _x = 0;
+    _y = 0;
+
+    _emit(_state.copyWith(x: _x, y: _y));
+    _queueCurrentPayload(force: true);
+  }
+
   void dispose() {
     if (_isDisposed) {
       return;
@@ -1034,5 +1175,455 @@ class JoystickBloc {
     if (!_controller.isClosed) {
       _controller.add(_state);
     }
+  }
+}
+
+class _GraphJoystick extends StatefulWidget {
+  const _GraphJoystick({required this.bloc});
+
+  final JoystickBloc bloc;
+
+  @override
+  State<_GraphJoystick> createState() => _GraphJoystickState();
+}
+
+class _GraphJoystickState extends State<_GraphJoystick>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animationController;
+  Animation<Offset>? _snapAnimation;
+  Offset _dragOffset = Offset.zero;
+  final double _joystickSize = 280.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _updatePosition(Offset localPos) {
+    final radius = _joystickSize / 2;
+    final center = Offset(radius, radius);
+    final offsetFromCenter = localPos - center;
+
+    // Clamp coordinates to a square bounding box instead of a circle
+    final clampedX = offsetFromCenter.dx.clamp(-radius, radius);
+    final clampedY = offsetFromCenter.dy.clamp(-radius, radius);
+    final clampedOffset = Offset(clampedX, clampedY);
+
+    setState(() {
+      _dragOffset = clampedOffset;
+    });
+
+    final xPct = clampedOffset.dx / radius;
+    final yPct = -clampedOffset.dy / radius;
+    widget.bloc.setAxes(xPct * 255, yPct * 255);
+  }
+
+  void _startSnapBack() {
+    _snapAnimation = Tween<Offset>(begin: _dragOffset, end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+
+    _animationController.addListener(_onSnapAnimationUpdate);
+    _animationController.addStatusListener(_onSnapAnimationStatusChange);
+
+    _animationController.forward(from: 0.0);
+  }
+
+  void _onSnapAnimationUpdate() {
+    if (_snapAnimation != null) {
+      setState(() {
+        _dragOffset = _snapAnimation!.value;
+      });
+      final radius = _joystickSize / 2;
+      final xPct = _dragOffset.dx / radius;
+      final yPct = -_dragOffset.dy / radius;
+      widget.bloc.setAxes(xPct * 255, yPct * 255);
+    }
+  }
+
+  void _onSnapAnimationStatusChange(AnimationStatus status) {
+    if (status == AnimationStatus.completed) {
+      _animationController.removeListener(_onSnapAnimationUpdate);
+      _animationController.removeStatusListener(_onSnapAnimationStatusChange);
+      widget.bloc.snapAxesToCenter();
+    }
+  }
+
+  void _stopSnapBack() {
+    if (_animationController.isAnimating) {
+      _animationController.stop();
+      _animationController.removeListener(_onSnapAnimationUpdate);
+      _animationController.removeStatusListener(_onSnapAnimationStatusChange);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = _joystickSize / 2;
+    final xPct = _dragOffset.dx / radius;
+    final yPct = -_dragOffset.dy / radius;
+    // Calculate the maximum displacement intensity on either axis
+    final intensity = (xPct.abs() > yPct.abs() ? xPct.abs() : yPct.abs()).clamp(
+      0.0,
+      1.0,
+    );
+
+    final padColor = Color.lerp(
+      const Color(0xFF0D1727).withOpacity(0.55),
+      const Color(0xFFFF5252).withOpacity(0.25),
+      intensity,
+    );
+
+    final borderColor = Color.lerp(
+      const Color(0xFF00E5FF).withOpacity(0.15),
+      const Color(0xFFFF5252).withOpacity(0.7),
+      intensity,
+    );
+
+    final shadowColor = Color.lerp(
+      const Color(0xFF00E5FF).withOpacity(0.05),
+      const Color(0xFFFF5252).withOpacity(0.25),
+      intensity,
+    );
+
+    return GestureDetector(
+      onPanStart: (details) {
+        _stopSnapBack();
+        _updatePosition(details.localPosition);
+      },
+      onPanUpdate: (details) {
+        _updatePosition(details.localPosition);
+      },
+      onPanEnd: (details) {
+        _startSnapBack();
+      },
+      child: Container(
+        width: _joystickSize,
+        height: _joystickSize,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          color: padColor,
+          border: Border.all(color: borderColor!, width: 2.0),
+          boxShadow: [
+            BoxShadow(color: shadowColor!, blurRadius: 20, spreadRadius: 2),
+          ],
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Background Grid Painter
+            Positioned.fill(
+              child: CustomPaint(painter: _JoystickGridPainter(radius: radius)),
+            ),
+            // Crosshair lines from center to thumb
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _JoystickTrailPainter(
+                  center: Offset(radius, radius),
+                  thumb: Offset(radius, radius) + _dragOffset,
+                ),
+              ),
+            ),
+            // Joystick thumb
+            Positioned(
+              left: radius + _dragOffset.dx - 30,
+              top: radius + _dragOffset.dy - 30,
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const RadialGradient(
+                    colors: [Color(0xFF00E5FF), Color(0xFF00838F)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00E5FF).withOpacity(0.4),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                  border: Border.all(color: Colors.white, width: 2.0),
+                ),
+                child: Center(
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _JoystickGridPainter extends CustomPainter {
+  _JoystickGridPainter({required this.radius});
+
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final paintGrid = Paint()
+      ..color = Colors.white.withOpacity(0.04)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    final paintAxes = Paint()
+      ..color = const Color(0xFF00E5FF).withOpacity(0.2)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    // Draw vertical and horizontal grid lines
+    const gridDivisions = 6;
+    final step = radius / (gridDivisions / 2);
+
+    // Vertical grid lines
+    for (double i = -radius + step; i < radius; i += step) {
+      if (i.abs() < 1) continue; // Skip center axis
+      canvas.drawLine(
+        Offset(center.dx + i, center.dy - radius),
+        Offset(center.dx + i, center.dy + radius),
+        paintGrid,
+      );
+    }
+
+    // Horizontal grid lines
+    for (double i = -radius + step; i < radius; i += step) {
+      if (i.abs() < 1) continue; // Skip center axis
+      canvas.drawLine(
+        Offset(center.dx - radius, center.dy + i),
+        Offset(center.dx + radius, center.dy + i),
+        paintGrid,
+      );
+    }
+
+    // Draw main axes
+    canvas.drawLine(
+      Offset(center.dx - radius, center.dy),
+      Offset(center.dx + radius, center.dy),
+      paintAxes,
+    );
+    canvas.drawLine(
+      Offset(center.dx, center.dy - radius),
+      Offset(center.dx, center.dy + radius),
+      paintAxes,
+    );
+
+    // Draw some tick marks on the axes
+    final tickPaint = Paint()
+      ..color = const Color(0xFF00E5FF).withOpacity(0.4)
+      ..strokeWidth = 1.0;
+
+    for (double i = -radius + step; i < radius; i += step) {
+      if (i.abs() < 1) continue; // Skip center
+      // X-axis ticks
+      canvas.drawLine(
+        Offset(center.dx + i, center.dy - 4),
+        Offset(center.dx + i, center.dy + 4),
+        tickPaint,
+      );
+      // Y-axis ticks
+      canvas.drawLine(
+        Offset(center.dx - 4, center.dy + i),
+        Offset(center.dx + 4, center.dy + i),
+        tickPaint,
+      );
+    }
+
+    // Draw labels: -255, +255, etc.
+    const textStyle = TextStyle(
+      color: Color(0xFF00E5FF),
+      fontSize: 8,
+      fontWeight: FontWeight.bold,
+      fontFamily: 'monospace',
+    );
+
+    void drawText(String text, Offset offset, {bool isCenteringX = true}) {
+      final textPainter = TextPainter(
+        text: TextSpan(text: text, style: textStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      final adjustedOffset = Offset(
+        isCenteringX ? offset.dx - textPainter.width / 2 : offset.dx,
+        offset.dy - textPainter.height / 2,
+      );
+      textPainter.paint(canvas, adjustedOffset);
+    }
+
+    // Y Axis labels
+    drawText('+255', Offset(center.dx, center.dy - radius + 12));
+    drawText('-255', Offset(center.dx, center.dy + radius - 12));
+
+    // X Axis labels
+    drawText('-255', Offset(center.dx - radius + 16, center.dy - 8));
+    drawText('+255', Offset(center.dx + radius - 16, center.dy - 8));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _JoystickTrailPainter extends CustomPainter {
+  _JoystickTrailPainter({required this.center, required this.thumb});
+
+  final Offset center;
+  final Offset thumb;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (thumb == center) return;
+
+    final paintLine = Paint()
+      ..color = const Color(0xFF00E5FF).withOpacity(0.3)
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    final paintProjection = Paint()
+      ..color = Colors.white.withOpacity(0.2)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    // Draw main line from center to thumb
+    canvas.drawLine(center, thumb, paintLine);
+
+    // Draw projections to the axes
+    // X projection: vertical line from thumb to horizontal axis (y = center.dy)
+    _drawDashedLine(
+      canvas,
+      thumb,
+      Offset(thumb.dx, center.dy),
+      paintProjection,
+    );
+
+    // Y projection: horizontal line from thumb to vertical axis (x = center.dx)
+    _drawDashedLine(
+      canvas,
+      thumb,
+      Offset(center.dx, thumb.dy),
+      paintProjection,
+    );
+
+    // Draw dots at projection intercepts
+    final dotPaint = Paint()
+      ..color = const Color(0xFF00E5FF)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(thumb.dx, center.dy), 3, dotPaint);
+    canvas.drawCircle(Offset(center.dx, thumb.dy), 3, dotPaint);
+  }
+
+  void _drawDashedLine(Canvas canvas, Offset p1, Offset p2, Paint paint) {
+    const dashWidth = 4.0;
+    const dashSpace = 4.0;
+
+    final distance = (p2 - p1).distance;
+    if (distance == 0) return;
+
+    final direction = (p2 - p1) / distance;
+    double drawn = 0.0;
+
+    while (drawn < distance) {
+      final start = p1 + direction * drawn;
+      final end = p1 + direction * (drawn + dashWidth).clamp(0, distance);
+      canvas.drawLine(start, end, paint);
+      drawn += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _JoystickTrailPainter oldDelegate) {
+    return oldDelegate.thumb != thumb || oldDelegate.center != center;
+  }
+}
+
+class _TelemetryDisplay extends StatelessWidget {
+  const _TelemetryDisplay({required this.x, required this.y});
+
+  final int x;
+  final int y;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0D1727).withOpacity(0.55),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.08),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildMetric('STEERING (X)', x, const Color(0xFF00E5FF)),
+              Container(
+                width: 1,
+                height: 40,
+                color: Colors.white.withOpacity(0.1),
+              ),
+              _buildMetric('THROTTLE (Y)', y, const Color(0xFF3EE08A)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetric(String label, int value, Color color) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+            color: Colors.white.withOpacity(0.5),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          value > 0 ? '+$value' : value.toString(),
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'monospace',
+            color: color,
+            shadows: [Shadow(color: color.withOpacity(0.4), blurRadius: 10)],
+          ),
+        ),
+      ],
+    );
   }
 }
