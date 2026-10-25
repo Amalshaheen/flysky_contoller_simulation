@@ -57,6 +57,14 @@ class JoystickScreen extends StatefulWidget {
 
 class _JoystickScreenState extends State<JoystickScreen> {
   late final JoystickBloc _bloc;
+  bool _isThrottleLeft = true;
+  bool _isCustomizeMode = false;
+  double _throttleWidth = 150.0;
+  double _throttleHeight = 240.0;
+  Alignment _throttleAlignment = const Alignment(-1.0, 0.0);
+  double _steeringWidth = 380.0;
+  double _steeringHeight = 150.0;
+  Alignment _steeringAlignment = const Alignment(1.0, 0.0);
 
   @override
   void initState() {
@@ -232,89 +240,383 @@ class _JoystickScreenState extends State<JoystickScreen> {
     );
   }
 
+  void _onControlDrag(
+    JoystickAxis axis,
+    DragUpdateDetails details,
+    Size screenSize,
+  ) {
+    if (!_isCustomizeMode) return;
+    setState(() {
+      final dx = 2 * details.delta.dx / screenSize.width;
+      final dy = 2 * details.delta.dy / screenSize.height;
+      if (axis == JoystickAxis.y) {
+        _throttleAlignment = Alignment(
+          (_throttleAlignment.x + dx).clamp(-1.0, 1.0),
+          (_throttleAlignment.y + dy).clamp(-1.0, 1.0),
+        );
+      } else {
+        _steeringAlignment = Alignment(
+          (_steeringAlignment.x + dx).clamp(-1.0, 1.0),
+          (_steeringAlignment.y + dy).clamp(-1.0, 1.0),
+        );
+      }
+    });
+  }
+
   Widget _buildLandscapeLayout() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        children: [
-          // Column 1: Throttle (Vertical Slider)
-          Expanded(
-            flex: 3,
-            child: Center(
-              child: SizedBox(
-                width: 150,
-                child: StreamBuilder<int>(
-                  stream: _bloc.stream.map((s) => s.y).distinct(),
-                  initialData: _bloc.state.y,
-                  builder: (context, snapshot) {
-                    final yValue = snapshot.data ?? _bloc.state.y;
-                    return _ControlCard(
-                      title: 'THROTTLE',
-                      subtitle: 'Y-Axis',
+      padding: const EdgeInsets.only(top: 16, bottom: 16),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final screenSize = Size(constraints.maxWidth, constraints.maxHeight);
+
+          final throttleWidget = SizedBox(
+            width: _throttleWidth,
+            height: _throttleHeight,
+            child: StreamBuilder<int>(
+              stream: _bloc.stream.map((s) => s.y).distinct(),
+              initialData: _bloc.state.y,
+              builder: (context, snapshot) {
+                final yValue = snapshot.data ?? _bloc.state.y;
+                return _ControlCard(
+                  title: 'THROTTLE',
+                  subtitle: 'Y-Axis',
+                  value: yValue,
+                  isCustomizeMode: _isCustomizeMode,
+                  width: _throttleWidth,
+                  height: _throttleHeight,
+                  onWidthChanged: (val) {
+                    setState(() => _throttleWidth = val);
+                  },
+                  onHeightChanged: (val) {
+                    setState(() => _throttleHeight = val);
+                  },
+                  onPresetSelected: (alignment) {
+                    setState(() => _throttleAlignment = alignment);
+                  },
+                  child: RotatedBox(
+                    quarterTurns: 3,
+                    child: _ColoredTrackSlider(
                       value: yValue,
-                      child: RotatedBox(
-                        quarterTurns: 3,
-                        child: _ColoredTrackSlider(
-                          value: yValue,
-                          onChanged: (val) =>
-                              _bloc.setAxis(JoystickAxis.y, val),
-                          onChangeEnd: (val) =>
-                              _bloc.snapAxisToCenter(JoystickAxis.y),
-                        ),
-                      ),
-                    );
+                      onChanged: (val) => _bloc.setAxis(JoystickAxis.y, val),
+                      onChangeEnd: (val) =>
+                          _bloc.snapAxisToCenter(JoystickAxis.y),
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+
+          final steeringWidget = SizedBox(
+            width: _steeringWidth,
+            height: _steeringHeight,
+            child: StreamBuilder<int>(
+              stream: _bloc.stream.map((s) => s.x).distinct(),
+              initialData: _bloc.state.x,
+              builder: (context, snapshot) {
+                final xValue = snapshot.data ?? _bloc.state.x;
+                return _ControlCard(
+                  title: 'STEERING',
+                  subtitle: 'X-Axis',
+                  value: xValue,
+                  isCustomizeMode: _isCustomizeMode,
+                  width: _steeringWidth,
+                  height: _steeringHeight,
+                  onWidthChanged: (val) {
+                    setState(() => _steeringWidth = val);
                   },
-                ),
-              ),
-            ),
-          ),
-          // Column 2: Bluetooth Status (Center Button)
-          SizedBox(
-            width: 140,
-            child: Center(
-              child: StreamBuilder<JoystickState>(
-                stream: _bloc.stream,
-                initialData: _bloc.state,
-                builder: (context, snapshot) {
-                  final state = snapshot.data ?? _bloc.state;
-                  return _TopStatusBar(state: state, bloc: _bloc);
-                },
-              ),
-            ),
-          ),
-          // Column 3: Steering (Horizontal Slider)
-          Expanded(
-            flex: 5,
-            child: Center(
-              child: SizedBox(
-                width: 380, // Very wide horizontal slider
-                height: 150,
-                child: StreamBuilder<int>(
-                  stream: _bloc.stream.map((s) => s.x).distinct(),
-                  initialData: _bloc.state.x,
-                  builder: (context, snapshot) {
-                    final xValue = snapshot.data ?? _bloc.state.x;
-                    return _ControlCard(
-                      title: 'STEERING',
-                      subtitle: 'X-Axis',
+                  onHeightChanged: (val) {
+                    setState(() => _steeringHeight = val);
+                  },
+                  onPresetSelected: (alignment) {
+                    setState(() => _steeringAlignment = alignment);
+                  },
+                  child: Center(
+                    child: _ColoredTrackSlider(
                       value: xValue,
-                      child: Center(
-                        child: _ColoredTrackSlider(
-                          value: xValue,
-                          onChanged: (val) =>
-                              _bloc.setAxis(JoystickAxis.x, val),
-                          onChangeEnd: (val) =>
-                              _bloc.snapAxisToCenter(JoystickAxis.x),
-                        ),
+                      onChanged: (val) => _bloc.setAxis(JoystickAxis.x, val),
+                      onChangeEnd: (val) =>
+                          _bloc.snapAxisToCenter(JoystickAxis.x),
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+
+          return Stack(
+            children: [
+              // Center control panel column
+              Align(
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: 150,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      StreamBuilder<JoystickState>(
+                        stream: _bloc.stream,
+                        initialData: _bloc.state,
+                        builder: (context, snapshot) {
+                          final state = snapshot.data ?? _bloc.state;
+                          return _TopStatusBar(state: state, bloc: _bloc);
+                        },
                       ),
-                    );
-                  },
+                      const SizedBox(height: 16),
+                      _buildSwapToggle(),
+                      const SizedBox(height: 16),
+                      _buildCustomizeToggle(),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Floating edit mode reminder banner
+              if (_isCustomizeMode)
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF9800).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFFF9800).withOpacity(0.5),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.edit,
+                          color: Color(0xFFFF9800),
+                          size: 14,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'CUSTOMIZE LAYOUT: Drag cards to reposition',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFFFF9800).withOpacity(0.9),
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Throttle control alignment wrapper
+              Align(
+                alignment: _throttleAlignment,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onPanUpdate: _isCustomizeMode
+                      ? (details) =>
+                            _onControlDrag(JoystickAxis.y, details, screenSize)
+                      : null,
+                  child: throttleWidget,
+                ),
+              ),
+
+              // Steering control alignment wrapper
+              Align(
+                alignment: _steeringAlignment,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onPanUpdate: _isCustomizeMode
+                      ? (details) =>
+                            _onControlDrag(JoystickAxis.x, details, screenSize)
+                      : null,
+                  child: steeringWidget,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCustomizeToggle() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'CUSTOMIZE',
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+            color: Colors.white.withOpacity(0.4),
+          ),
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _isCustomizeMode = !_isCustomizeMode;
+            });
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            width: 120,
+            height: 38,
+            decoration: BoxDecoration(
+              color: _isCustomizeMode
+                  ? const Color(0xFFFF9800).withOpacity(0.12)
+                  : const Color(0xFF0D1727).withOpacity(0.55),
+              borderRadius: BorderRadius.circular(19),
+              border: Border.all(
+                color: _isCustomizeMode
+                    ? const Color(0xFFFF9800)
+                    : const Color(0xFF00E5FF).withOpacity(0.15),
+                width: 1.5,
+              ),
+              boxShadow: _isCustomizeMode
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFFF9800).withOpacity(0.2),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Center(
+              child: Text(
+                _isCustomizeMode ? 'DONE' : 'EDIT LAYOUT',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                  color: _isCustomizeMode
+                      ? const Color(0xFFFF9800)
+                      : Colors.white.withOpacity(0.7),
                 ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSwapToggle() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'LAYOUT',
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+            color: Colors.white.withOpacity(0.4),
+          ),
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _isThrottleLeft = !_isThrottleLeft;
+              if (_isThrottleLeft) {
+                _throttleAlignment = const Alignment(-1.0, 0.0);
+                _steeringAlignment = const Alignment(1.0, 0.0);
+              } else {
+                _throttleAlignment = const Alignment(1.0, 0.0);
+                _steeringAlignment = const Alignment(-1.0, 0.0);
+              }
+            });
+          },
+          child: Container(
+            width: 120,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D1727).withOpacity(0.55),
+              borderRadius: BorderRadius.circular(19),
+              border: Border.all(
+                color: const Color(0xFF00E5FF).withOpacity(0.15),
+                width: 1.5,
+              ),
+            ),
+            child: Stack(
+              children: [
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                  left: _isThrottleLeft ? 2 : 60,
+                  top: 2,
+                  child: Container(
+                    width: 58,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF00E5FF).withOpacity(0.2),
+                          const Color(0xFF00838F).withOpacity(0.25),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: const Color(0xFF00E5FF).withOpacity(0.6),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00E5FF).withOpacity(0.15),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          'THR L',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'monospace',
+                            color: _isThrottleLeft
+                                ? const Color(0xFF00E5FF)
+                                : Colors.white.withOpacity(0.4),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          'THR R',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'monospace',
+                            color: !_isThrottleLeft
+                                ? const Color(0xFF00E5FF)
+                                : Colors.white.withOpacity(0.4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -364,12 +666,57 @@ class _ControlCard extends StatelessWidget {
     required this.subtitle,
     required this.value,
     required this.child,
+    this.isCustomizeMode = false,
+    this.width,
+    this.height,
+    this.onWidthChanged,
+    this.onHeightChanged,
+    this.onPresetSelected,
   });
 
   final String title;
   final String subtitle;
   final int value;
   final Widget child;
+  final bool isCustomizeMode;
+  final double? width;
+  final double? height;
+  final ValueChanged<double>? onWidthChanged;
+  final ValueChanged<double>? onHeightChanged;
+  final ValueChanged<Alignment>? onPresetSelected;
+
+  Widget _presetChip(String label, Alignment alignment) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2.0),
+      child: GestureDetector(
+        onTap: () {
+          if (onPresetSelected != null) {
+            onPresetSelected!(alignment);
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.5),
+            border: Border.all(
+              color: const Color(0xFFFF9800).withOpacity(0.6),
+              width: 1,
+            ),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 7.5,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFFF9800),
+              fontFamily: 'monospace',
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -382,76 +729,244 @@ class _ControlCard extends StatelessWidget {
             color: const Color(0xFF0D1727).withOpacity(0.55),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: Colors.white.withOpacity(0.08),
-              width: 1.5,
+              color: isCustomizeMode
+                  ? const Color(0xFFFF9800)
+                  : Colors.white.withOpacity(0.08),
+              width: isCustomizeMode ? 2.0 : 1.5,
             ),
             boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
+              if (isCustomizeMode)
+                BoxShadow(
+                  color: const Color(0xFFFF9800).withOpacity(0.4),
+                  blurRadius: 15,
+                  spreadRadius: 2,
+                )
+              else
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
             ],
           ),
           child: Stack(
             children: [
               Positioned.fill(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 40, bottom: 12),
-                  child: child,
+                child: Opacity(
+                  opacity: isCustomizeMode ? 0.15 : 1.0,
+                  child: IgnorePointer(
+                    ignoring: isCustomizeMode,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 40, bottom: 12),
+                      child: child,
+                    ),
+                  ),
                 ),
               ),
               Positioned(
                 top: 14,
                 left: 18,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
-                        color: Colors.white,
+                child: Opacity(
+                  opacity: isCustomizeMode ? 0.15 : 1.0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 8,
-                        color: Colors.white.withOpacity(0.4),
+                      const SizedBox(height: 1),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 8,
+                          color: Colors.white.withOpacity(0.4),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               Positioned(
                 top: 12,
                 right: 18,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white.withOpacity(0.12)),
-                  ),
-                  child: Text(
-                    value.toString(),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontFamily: 'monospace',
+                child: Opacity(
+                  opacity: isCustomizeMode ? 0.15 : 1.0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white.withOpacity(0.12)),
+                    ),
+                    child: Text(
+                      value.toString(),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
                 ),
               ),
+
+              // Customize Overlay HUD
+              if (isCustomizeMode)
+                Positioned.fill(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8.0,
+                          vertical: 4.0,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.open_with,
+                                  color: Color(0xFFFF9800),
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  title,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFFF9800),
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  _presetChip(
+                                    'TL',
+                                    const Alignment(-1.0, -1.0),
+                                  ),
+                                  _presetChip('TR', const Alignment(1.0, -1.0)),
+                                  _presetChip('FL', const Alignment(-1.0, 0.0)),
+                                  _presetChip('CTR', const Alignment(0.0, 0.0)),
+                                  _presetChip('FR', const Alignment(1.0, 0.0)),
+                                  _presetChip('BL', const Alignment(-1.0, 1.0)),
+                                  _presetChip('BR', const Alignment(1.0, 1.0)),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8.0,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.swap_horiz,
+                                    color: Color(0xFFFF9800),
+                                    size: 14,
+                                  ),
+                                  Expanded(
+                                    child: SliderTheme(
+                                      data: SliderThemeData(
+                                        trackHeight: 2,
+                                        thumbShape: const RoundSliderThumbShape(
+                                          enabledThumbRadius: 6,
+                                        ),
+                                        overlayShape:
+                                            const RoundSliderOverlayShape(
+                                              overlayRadius: 10,
+                                            ),
+                                        activeTrackColor: const Color(
+                                          0xFFFF9800,
+                                        ),
+                                        inactiveTrackColor: Colors.white10,
+                                        thumbColor: const Color(0xFFFF9800),
+                                      ),
+                                      child: Slider(
+                                        value: width!,
+                                        min: title == 'THROTTLE'
+                                            ? 100.0
+                                            : 250.0,
+                                        max: title == 'THROTTLE'
+                                            ? 250.0
+                                            : 550.0,
+                                        onChanged: onWidthChanged,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8.0,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.swap_vert,
+                                    color: Color(0xFFFF9800),
+                                    size: 14,
+                                  ),
+                                  Expanded(
+                                    child: SliderTheme(
+                                      data: SliderThemeData(
+                                        trackHeight: 2,
+                                        thumbShape: const RoundSliderThumbShape(
+                                          enabledThumbRadius: 6,
+                                        ),
+                                        overlayShape:
+                                            const RoundSliderOverlayShape(
+                                              overlayRadius: 10,
+                                            ),
+                                        activeTrackColor: const Color(
+                                          0xFFFF9800,
+                                        ),
+                                        inactiveTrackColor: Colors.white10,
+                                        thumbColor: const Color(0xFFFF9800),
+                                      ),
+                                      child: Slider(
+                                        value: height!,
+                                        min: title == 'THROTTLE'
+                                            ? 200.0
+                                            : 130.0,
+                                        max: title == 'THROTTLE'
+                                            ? 400.0
+                                            : 250.0,
+                                        onChanged: onHeightChanged,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
